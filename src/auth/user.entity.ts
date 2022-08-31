@@ -2,7 +2,7 @@ import { BaseEntity, Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 import * as bcrypt from 'bcrypt';
 
 @Entity()
-export class User extends BaseEntity{
+export class User extends BaseEntity {
     @PrimaryGeneratedColumn()
     id: number;
     @Column()
@@ -12,7 +12,7 @@ export class User extends BaseEntity{
     @Column()
     salt: string;
 
-    async validatePassword(password: string): Promise<boolean>{
+    async validatePassword(password: string): Promise<boolean> {
         const hash = await bcrypt.hash(password, this.salt);
         return hash === this.password
     }
