@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Like } from 'typeorm';
+import { GetUser } from 'src/auth/get-user.decorator';
+import { User } from 'src/auth/user.entity';
 import { CreateTaskDto } from './dto/creat-task.dto';
 import { getTaskFilterDto } from './dto/get-task-filter.dto';
 import { TaskStatus } from './task-status.enum';
@@ -9,48 +9,56 @@ import { Task } from './task.entity';
 @Injectable()
 export class TasksService {
 
-  async getTasks(filterDto: getTaskFilterDto): Promise<Task[]> {
-    if (filterDto.search) {
-      return await Task.find({ where: [{ title: Like(`%${filterDto.search}%`) }, { description: Like(`%${filterDto.search}%`) }] })
+  async getTasks(filterDto: getTaskFilterDto, user: User): Promise<Task[]> {
+    const { status, search } = filterDto;
+    const query = Task.createQueryBuilder('task')
+    query.where('task.userId = :userId', { userId: user.id })
+    if (status) {
+      query.andWhere('task.status = :status', { status })
     }
-    if (filterDto.status) {
-      return await Task.find({ where: { status: filterDto.status } })
+    if (search) {
+      query.andWhere('(task.title LIKE :search OR task.description LIKE :search)', { search: `%${search}%` })
     }
-    return Task.find();
+    const tasks = await query.getMany();
+    return tasks;
   }
 
-  async getTaskById(id: any): Promise<Task> {
-    const found = await Task.findOneBy({ id: id });
-    if (!found) {
-      throw new NotFoundException('Non-Existing Id, Please Try Again');
-    }
-    return found;
+  async getTaskById(id: any, user: User): Promise<Task> {
+    const query = Task.createQueryBuilder('task')
+    query.where('task.userId = :userId', { userId: user.id })
+    query.andWhere('task.id = :id', { id })
+    const task = query.getOne();
+    return task
   }
 
 
-  async createTask(createTaskDto: CreateTaskDto): Promise<Task> {
+  async createTask(createTaskDto: CreateTaskDto, user: User): Promise<Task> {
     const { title, description } = createTaskDto;
     const task = new Task();
     task.title = title;
     task.description = description;
     task.status = TaskStatus.OPEN;
-    await task.save()
+    task.user = user;
+    await task.save();
+
+    // not to show user's information to the client
+    delete task.user
     return task;
   }
 
-  async deleteTask(id: number): Promise<Task> {
-    const chosenTask = await this.getTaskById(id);
+  async deleteTask(id: number, user: User): Promise<Task> {
+    const chosenTask = await this.getTaskById(id, user);
     if (!chosenTask) {
       throw new NotFoundException(
-        'Can not delete non-existing task, please try again!',
+        'NOT YOUR TASK, BITCH',
       );
     }
     Task.delete({ id: chosenTask.id })
     return chosenTask;
   }
 
-  async updateTaskStatus(id: number, status: TaskStatus): Promise<Task> {
-    const task = await this.getTaskById(id);
+    async updateTaskStatus(id: number, status: TaskStatus, user: User): Promise < Task > {
+    const task = await this.getTaskById(id, user);
     task.status = status;
     task.save();
     return task

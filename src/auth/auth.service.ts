@@ -25,7 +25,6 @@ export class AuthService {
         user.salt = await bcrypt.genSalt();
         user.username = username;
         user.password = await this.hashPassword(password, user.salt);
-
         try {
             await user.save()
         }
@@ -35,22 +34,20 @@ export class AuthService {
         console.log('User Created!')
     }
 
-    async signIn(authCredentailDto: AuthCredentailDto): Promise<{accessToken: string}> {
+    async signIn(authCredentailDto: AuthCredentailDto): Promise<{ accessToken: string }> {
         const { username, password } = authCredentailDto;
         const res = await User.find({ where: { username } });
         if (!res.length) {
             throw new NotFoundException('User not found!')
         }
+        const user = res[0];
+        const hashedEnteredPassword = await this.hashPassword(password, user.salt)
+        if (hashedEnteredPassword !== user.password) {
+            throw new NotFoundException('Wrong password')
+        }
 
         const payload: JwtPayload = { username };
-        const accessToken = await this.jwtService.sign(payload);
-
+        const accessToken = await this.jwtService.sign(payload)
         return { accessToken }
-
-        const user = res[0]
-        if (!(await user.validatePassword(password))) {
-            throw new UnauthorizedException('Incorrect Password, please try again!!!')
-        }
-        console.log('Signed in')
     }
 }
